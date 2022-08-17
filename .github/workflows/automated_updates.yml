@@ -3,7 +3,7 @@ name: scrape_data_update_dashboard
 # Run daily at 4am
 on:
   schedule:
-    - cron:  '0 4 * * *'
+    - cron:  '*/5 * * * *'
 
 jobs:
   scrape_data_update_dashboard:
