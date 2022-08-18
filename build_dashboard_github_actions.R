@@ -1,3 +1,4 @@
+install.packages("rmarkdown")
 install.packages("tidyverse")
 install.packages("rvest")
 install.packages("httr")

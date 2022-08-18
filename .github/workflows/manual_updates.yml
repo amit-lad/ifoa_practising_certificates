@@ -23,6 +23,7 @@ jobs:
     - uses: r-lib/actions/setup-r@master
       with:
         r-version: release
+    - uses: r-lib/actions/setup-pandoc@v1
     
     # Run R scripts 
     - name: Install packages and run R scripts
