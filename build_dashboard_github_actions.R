@@ -1,0 +1,12 @@
+install.packages("tidyverse")
+install.packages("rvest")
+install.packages("httr")
+install.packages("readr")
+install.packages("purrr")
+install.packages("flexdashboard")
+install.packages("DT")
+install.packages("plotly")
+
+source("scrape_data.R")
+source("build_database.R")
+rmarkdown::render("ifoa_practising_certificates.Rmd", output_file = "_site/ifoa_practising_certificates.html")
