@@ -1,0 +1,161 @@
+---
+title: "Practising Certificates"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      version: 4
+      bootswatch: materia
+    orientation: rows
+    vertical_scroll: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(DT)
+library(plotly)
+
+certificate_database <- readRDS("database/certificate_database.rds")
+
+current_certificates <- 
+  certificate_database %>%
+  filter(last_date >= max(last_date)-1)
+
+new_certificates <-
+  certificate_database %>%
+  filter(first_date >= max(last_date)-28) %>%
+  filter(first_date > min(first_date)) %>%
+  mutate(status = "new")
+
+expired_certificates <-
+  certificate_database %>%
+  filter(last_date >= max(last_date)-28, last_date < max(last_date)-1) %>%
+  mutate(status = "expired")
+
+num_current_certificates <- current_certificates %>% nrow()
+num_new_certificates <- new_certificates %>% nrow()
+num_expired_certificates <- expired_certificates %>% nrow()
+num_cera <- current_certificates %>% filter(cera == TRUE) %>% nrow()
+num_fia <- current_certificates %>% filter(fellow_type == "Fellow FIA") %>% nrow()
+
+
+```
+
+Data as at: `r certificate_database$last_date %>% max()`
+
+Summary
+===================================== 
+
+
+
+Gauges and value boxes
+-------------------------------------
+
+### current insurance certificates issued
+```{r}
+valueBox(
+  num_current_certificates, 
+  icon = "fa-medal"
+  )
+```
+
+### new insurance certificates issued in last 30 days
+```{r}
+valueBox(
+  num_new_certificates, 
+  icon = "fa-plus-circle"
+  )
+```
+
+### insurance certificates expired in last 30 days
+```{r}
+valueBox(
+  num_expired_certificates, 
+  icon = "fa-minus-circle"
+  )
+```
+
+### Number of insurance certificates with CERA
+```{r}
+gauge(
+  num_cera, 
+  min = 0,
+  max = num_current_certificates
+  )
+```
+
+### Number of insurance certificates with FIA
+```{r}
+gauge(
+  num_fia, 
+  min = 0,
+  max = num_current_certificates
+  )
+```
+
+Main charts and tables {.tabset}
+-------------------------------------
+
+### Certificate changes (last 30 days)
+```{r}
+new_certificates %>%
+  bind_rows(expired_certificates) %>%
+  DT::datatable(style = "auto")
+```
+
+### Certificates by qualification year
+```{r}
+current_certificates %>%
+  group_by(certificate, fellow_type, qualification_year, cera) %>%
+  summarise(count = n()) %>%
+  plot_ly(
+    x = ~qualification_year,
+    y = ~count,
+    type = "bar",
+    color = ~certificate
+  ) %>%
+  layout(
+    barmode = "stack"
+  )
+```
+
+### New certificates
+```{r}
+certificate_database %>%
+  group_by(certificate, fellow_type, qualification_year, cera) %>%
+  filter(first_date > min(first_date)) %>%
+  plot_ly(
+    x = ~first_date,
+    y = ~qualification_year,
+    type = "scatter",
+    mode = "markers",
+    color = ~certificate
+  )
+```
+
+### Expired certificates
+```{r}
+certificate_database %>%
+  group_by(certificate, fellow_type, qualification_year, cera) %>%
+  filter(last_date < max(last_date)) %>%
+  plot_ly(
+    x = ~first_date,
+    y = ~qualification_year,
+    type = "scatter",
+    mode = "markers",
+    color = ~certificate
+  )
+```
+
+Database
+=====================================
+
+### Scraped data
+
+```{r}
+DT::datatable(
+  certificate_database,
+  filter = list(position = 'top', clear = FALSE),
+  style = "auto"
+  )
+```
