@@ -1,9 +1,10 @@
-name: scrape_data_update_dashboard
+name: automated_updates
 
 # Run daily at 3am
 on:
   schedule:
     - cron:  '0 3 * * *'
+
 
 
 jobs:
@@ -16,10 +17,13 @@ jobs:
     - uses: r-lib/actions/setup-r@master
       with:
         r-version: release
-
+    - uses: r-lib/actions/setup-pandoc@v1
+    
     # Run R scripts 
     - name: Install packages and run R scripts
-      run: Rscript build_dashboard_github_actions.R
+      run: |
+        PATH=$PATH:/usr/lib/rstudio-server/bin/pandoc
+        Rscript build_dashboard_github_actions.R
 
  # Add new files in data folder, commit along with other modified files, push
     - name: Commit files

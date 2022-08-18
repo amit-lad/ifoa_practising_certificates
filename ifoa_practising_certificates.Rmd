@@ -51,7 +51,7 @@ Summary
 Gauges and value boxes
 -------------------------------------
 
-### current insurance certificates issued
+### current certificates issued
 ```{r}
 valueBox(
   num_current_certificates, 
@@ -59,7 +59,7 @@ valueBox(
   )
 ```
 
-### new insurance certificates issued in last 30 days
+### new certificates issued in last 30 days
 ```{r}
 valueBox(
   num_new_certificates, 
@@ -67,7 +67,7 @@ valueBox(
   )
 ```
 
-### insurance certificates expired in last 30 days
+### certificates expired in last 30 days
 ```{r}
 valueBox(
   num_expired_certificates, 
@@ -75,7 +75,7 @@ valueBox(
   )
 ```
 
-### Number of insurance certificates with CERA
+### Number of certificates with CERA
 ```{r}
 gauge(
   num_cera, 
@@ -84,7 +84,7 @@ gauge(
   )
 ```
 
-### Number of insurance certificates with FIA
+### Number of certificates with FIA
 ```{r}
 gauge(
   num_fia, 
@@ -146,6 +146,14 @@ certificate_database %>%
     color = ~certificate
   )
 ```
+
+### Regulatory record
+```{r}
+certificate_database %>%
+  filter(regulatory_record == TRUE) %>%
+  DT::datatable(style = "auto")
+```
+
 
 Database
 =====================================

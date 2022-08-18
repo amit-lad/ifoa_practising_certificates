@@ -1,4 +1,4 @@
-name: scrape_data_update_dashboard
+name: manual_updates
 
 # Manually trigger
 on:

@@ -7,8 +7,8 @@ raw_data <- raw_data_files %>% map_df(read_rds)
 
 # Create PC type 
 PC_types = tibble(
-  certificate_regex = c("Chief Actuary \\(Life\\)", "With Profits Actuary", "Chief Actuary \\(Life, Non-Directive\\)", "Chief Actuary \\(non-Life without Lloyd's\\)", "Chief Actuary \\(non-Life with Lloyd's\\)", "Lloyd's Syndicate Actuary"),
-  certificate = c("Chief Actuary (Life)", "With Profits Actuary", "Chief Actuary (Life, Non-Directive)", "Chief Actuary (non-Life without Lloyd's)", "Chief Actuary (non-Life with Lloyd's)", "Lloyd's Syndicate Actuary")
+  certificate_regex = c("Chief Actuary \\(Life\\)", "With Profits Actuary", "Chief Actuary \\(Life, Non-Directive\\)", "Chief Actuary \\(non-Life without Lloyd's\\)", "Chief Actuary \\(non-Life with Lloyd's\\)", "Lloyd's Syndicate Actuary", "Scheme Actuary"),
+  certificate = c("Chief Actuary (Life)", "With Profits Actuary", "Chief Actuary (Life, Non-Directive)", "Chief Actuary (non-Life without Lloyd's)", "Chief Actuary (non-Life with Lloyd's)", "Lloyd's Syndicate Actuary", "Scheme Actuary")
   )
 
 # Clean data
