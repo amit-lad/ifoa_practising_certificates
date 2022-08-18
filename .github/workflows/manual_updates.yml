@@ -23,10 +23,12 @@ jobs:
     - uses: r-lib/actions/setup-r@master
       with:
         r-version: release
-
+    
     # Run R scripts 
     - name: Install packages and run R scripts
-      run: Rscript build_dashboard_github_actions.R
+      run: |
+        PATH=$PATH:/usr/lib/rstudio-server/bin/pandoc
+        Rscript build_dashboard_github_actions.R
 
  # Add new files in data folder, commit along with other modified files, push
     - name: Commit files
