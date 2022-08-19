@@ -7,6 +7,7 @@ output:
       bootswatch: materia
     orientation: rows
     vertical_scroll: fill
+    self_contained: false
 ---
 
 ```{r setup, include=FALSE}
