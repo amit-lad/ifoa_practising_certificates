@@ -37,12 +37,10 @@ num_current_certificates <- current_certificates %>% nrow()
 num_new_certificates <- new_certificates %>% nrow()
 num_expired_certificates <- expired_certificates %>% nrow()
 num_cera <- current_certificates %>% filter(cera == TRUE) %>% nrow()
-num_fia <- current_certificates %>% filter(fellow_type == "Fellow FIA") %>% nrow()
+num_ffa <- current_certificates %>% filter(fellow_type == "Fellow FFA") %>% nrow()
 
 
 ```
-
-Data as at: `r certificate_database$last_date %>% max()`
 
 Summary
 ===================================== 
@@ -51,6 +49,14 @@ Summary
 
 Gauges and value boxes
 -------------------------------------
+
+### last updated
+```{r}
+valueBox(
+  certificate_database$last_date %>% max(), 
+  icon = "fa-calendar-alt"
+  )
+```
 
 ### current certificates issued
 ```{r}
@@ -85,10 +91,10 @@ gauge(
   )
 ```
 
-### Number of certificates with FIA
+### Number of certificates with FFA
 ```{r}
 gauge(
-  num_fia, 
+  num_ffa, 
   min = 0,
   max = num_current_certificates
   )
