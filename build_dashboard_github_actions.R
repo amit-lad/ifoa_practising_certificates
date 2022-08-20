@@ -1,3 +1,4 @@
+update.packages()
 print("Progress update: Install package: modelr")
 install.packages("modelr")
 print("Progress update: Install package: rmarkdown")
