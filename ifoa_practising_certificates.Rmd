@@ -16,7 +16,36 @@ library(tidyverse)
 library(DT)
 library(plotly)
 
-certificate_database <- readRDS("database/certificate_database.rds")
+certificate_database <- readRDS("database/certificate_database.rds") %>%
+  mutate(
+    status = case_when(
+      (first_date >= max(last_date)-28) & (first_date > min(first_date)) ~ "new",
+      (last_date >= max(last_date)-28) & (last_date < max(last_date)-1) ~ "expired",
+      TRUE ~ "unchanged"
+      ),
+    certificate = case_when(
+      certificate == "Scheme Actuary" ~ "Scheme",
+      certificate == "Chief Actuary (non-Life with Lloyd's)" ~ "Non-Life with Lloyd's", 
+      certificate == "Lloyd's Syndicate Actuary" ~ "Syndicate",
+      certificate == "Chief Actuary (Life)" ~ "Life",
+      certificate == "With Profits Actuary" ~ "With Profits",
+      certificate == "Chief Actuary (Life, Non-Directive)" ~ "Life (Non-Directive)",
+      certificate == "Chief Actuary (non-Life without Lloyd's)" ~ "Non-Life ex Lloyd's",
+      TRUE ~ "unknown"
+    ),
+    certificate = factor(
+      certificate, levels = c(
+        "Life",
+        "Life (Non-Directive)",
+        "With Profits",
+        "Non-Life with Lloyd's",
+        "Non-Life ex Lloyd's",
+        "Syndicate",
+        "Scheme"
+        )
+      ),
+    fellow_type = factor(fellow_type, levels = c("Fellow FIA", "Fellow FFA"))
+    )
 
 current_certificates <- 
   certificate_database %>%
@@ -24,28 +53,27 @@ current_certificates <-
 
 new_certificates <-
   certificate_database %>%
-  filter(first_date >= max(last_date)-28) %>%
-  filter(first_date > min(first_date)) %>%
-  mutate(status = "new")
+  filter(status == "new")
 
 expired_certificates <-
   certificate_database %>%
-  filter(last_date >= max(last_date)-28, last_date < max(last_date)-1) %>%
-  mutate(status = "expired")
+  filter(status == "expired")
 
 num_current_certificates <- current_certificates %>% nrow()
 num_new_certificates <- new_certificates %>% nrow()
 num_expired_certificates <- expired_certificates %>% nrow()
 num_cera <- current_certificates %>% filter(cera == TRUE) %>% nrow()
 num_ffa <- current_certificates %>% filter(fellow_type == "Fellow FFA") %>% nrow()
+num_certificate_holders_by_certificate <-
+  current_certificates %>% 
+  group_by(certificate) %>% 
+  summarise(count = n(), .groups = "drop")
 
 
 ```
 
 Summary
 ===================================== 
-
-
 
 Gauges and value boxes
 -------------------------------------
@@ -82,39 +110,15 @@ valueBox(
   )
 ```
 
-### Number of certificates with CERA
-```{r}
-gauge(
-  num_cera, 
-  min = 0,
-  max = num_current_certificates
-  )
-```
-
-### Number of certificates with FFA
-```{r}
-gauge(
-  num_ffa, 
-  min = 0,
-  max = num_current_certificates
-  )
-```
-
-Main charts and tables {.tabset}
+Main charts {.tabset}
 -------------------------------------
 
-### Certificate changes (last 30 days)
-```{r}
-new_certificates %>%
-  bind_rows(expired_certificates) %>%
-  DT::datatable(style = "auto")
-```
 
 ### Certificates by qualification year
 ```{r}
 current_certificates %>%
   group_by(certificate, fellow_type, qualification_year, cera) %>%
-  summarise(count = n()) %>%
+  summarise(count = n(), .groups = "drop") %>%
   plot_ly(
     x = ~qualification_year,
     y = ~count,
@@ -125,6 +129,48 @@ current_certificates %>%
     barmode = "stack"
   )
 ```
+
+### CERA split by certificate
+```{r}
+current_certificates %>%
+  group_by(certificate, cera) %>%
+  summarise(count_cera = n(), .groups = "drop") %>%
+  left_join(num_certificate_holders_by_certificate, by = "certificate") %>%
+  mutate(proportion = 100 * count_cera / count) %>%
+  plot_ly(
+    y = ~proportion,
+    x = ~certificate,
+    color = ~cera,
+    type = "bar"
+  ) %>%
+  layout(
+    barmode = "stack",
+    legend = list(orientation = 'h')
+  )
+```
+
+> Currently, `r num_cera` certificates belong to person with CERA.
+
+### FFA/FIA split by certificate
+```{r}
+current_certificates %>%
+  group_by(certificate, fellow_type) %>%
+  summarise(count_fellow_type = n(), .groups = "drop") %>%
+  left_join(num_certificate_holders_by_certificate, by = "certificate") %>%
+  mutate(proportion = 100 * count_fellow_type / count) %>%
+  plot_ly(
+    y = ~proportion,
+    x = ~certificate,
+    color = ~fellow_type,
+    type = "bar"
+  ) %>%
+  layout(
+    barmode = "stack",
+    legend = list(orientation = 'h')
+  )
+```
+
+> Currently, `r num_ffa` certificates belong to persons that are FFA Fellows.
 
 ### New certificates
 ```{r}
@@ -154,6 +200,21 @@ certificate_database %>%
   )
 ```
 
+
+
+Tables
+=====================================
+
+Main tables {.tabset}
+-------------------------------------
+
+### Certificate changes (last 30 days)
+```{r}
+new_certificates %>%
+  bind_rows(expired_certificates) %>%
+  DT::datatable(style = "auto")
+```
+
 ### Regulatory record
 ```{r}
 certificate_database %>%
@@ -161,11 +222,7 @@ certificate_database %>%
   DT::datatable(style = "auto")
 ```
 
-
-Database
-=====================================
-
-### Scraped data
+### Current certificates
 
 ```{r}
 DT::datatable(
