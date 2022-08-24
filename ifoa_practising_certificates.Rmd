@@ -175,28 +175,32 @@ current_certificates %>%
 ### New certificates
 ```{r}
 certificate_database %>%
-  group_by(certificate, fellow_type, qualification_year, cera) %>%
   filter(first_date > min(first_date)) %>%
+  group_by(qualification_year, first_date) %>%
+  summarise(count = n()) %>%
   plot_ly(
     x = ~first_date,
     y = ~qualification_year,
     type = "scatter",
     mode = "markers",
-    color = ~certificate
+    color = ~count,
+    size = ~count
   )
 ```
 
 ### Expired certificates
 ```{r}
 certificate_database %>%
-  group_by(certificate, fellow_type, qualification_year, cera) %>%
   filter(last_date < max(last_date)) %>%
+  group_by(qualification_year, last_date) %>%
+  summarise(count = n()) %>%
   plot_ly(
-    x = ~first_date,
+    x = ~last_date,
     y = ~qualification_year,
     type = "scatter",
     mode = "markers",
-    color = ~certificate
+    color = ~count,
+    size = ~count
   )
 ```
 
