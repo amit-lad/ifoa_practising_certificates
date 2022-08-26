@@ -20,7 +20,7 @@ certificate_database <- readRDS("database/certificate_database.rds") %>%
   mutate(
     status = case_when(
       (first_date >= max(last_date)-28) & (first_date > min(first_date)) ~ "new",
-      (last_date >= max(last_date)-28) & (last_date < max(last_date)-1) ~ "expired",
+      (last_date >= max(last_date)-28) & (last_date < max(last_date)) ~ "expired",
       TRUE ~ "unchanged"
       ),
     certificate = case_when(
@@ -226,7 +226,7 @@ certificate_database %>%
   DT::datatable(style = "auto")
 ```
 
-### Current certificates
+### Database
 
 ```{r}
 DT::datatable(
