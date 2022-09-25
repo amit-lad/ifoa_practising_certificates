@@ -15,6 +15,7 @@ library(flexdashboard)
 library(tidyverse)
 library(DT)
 library(plotly)
+library(tidymodels)
 
 certificate_database <- readRDS("database/certificate_database.rds") %>%
   mutate(
@@ -69,7 +70,50 @@ num_certificate_holders_by_certificate <-
   group_by(certificate) %>% 
   summarise(count = n(), .groups = "drop")
 
+all_new_certificates <- 
+  certificate_database %>% 
+  filter(first_date > min(first_date))
 
+all_expired_certificates <-
+  certificate_database %>%
+  filter(last_date < max(last_date)-1)
+
+axis_first_date <- as.Date("2022-08-01")
+axis_last_date <- Sys.Date()
+
+linear_model_new_certificates <-
+  linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression") %>%
+  fit(qualification_year ~ first_date, data = all_new_certificates) 
+
+linear_model_expired_certificates <-
+  linear_reg() %>% 
+  set_engine("lm") %>% 
+  set_mode("regression") %>%
+  fit(qualification_year ~ last_date, data = all_expired_certificates) 
+
+dates_to_model <- 
+  tibble(
+    first_date = seq(from = axis_first_date, to = axis_last_date, by = 1),
+    last_date = first_date
+    )
+
+predict_qualification_year_new <-
+  linear_model_new_certificates %>%
+  predict(dates_to_model) %>%
+  rename(modelled_qualification_year_new = `.pred`)
+  
+
+predict_qualification_year_expired <-
+  linear_model_expired_certificates %>%
+  predict(dates_to_model) %>% 
+  rename(modelled_qualification_year_expired = `.pred`)
+
+model_results <- bind_cols(
+  dates_to_model, 
+  predict_qualification_year_new,
+  predict_qualification_year_expired)
 ```
 
 Summary
@@ -174,33 +218,65 @@ current_certificates %>%
 
 ### New certificates
 ```{r}
-certificate_database %>%
-  filter(first_date > min(first_date)) %>%
-  group_by(qualification_year, first_date) %>%
-  summarise(count = n()) %>%
+model_results %>%
+  left_join(all_new_certificates, by = c("first_date")) %>%
+  group_by(first_date, qualification_year) %>%
+  summarise(
+    count = n(), 
+    linear_regression = mean(modelled_qualification_year_new), 
+    .groups = "drop"
+    ) %>%
   plot_ly(
     x = ~first_date,
     y = ~qualification_year,
     type = "scatter",
     mode = "markers",
-    color = ~count,
-    size = ~count
+    #color = ~count,
+    size = ~count,
+    name = "new certificates"
+  ) %>%
+  layout(
+    xaxis = list(range = c(axis_first_date, axis_last_date)),
+    showlegend = FALSE
+  ) %>%
+  add_trace(
+    x = ~first_date,
+    y = ~linear_regression,
+    name = "regression",
+    mode = "lines",
+    alpha = 1
   )
 ```
 
 ### Expired certificates
 ```{r}
-certificate_database %>%
-  filter(last_date < max(last_date)) %>%
-  group_by(qualification_year, last_date) %>%
-  summarise(count = n()) %>%
+model_results %>%
+  left_join(all_expired_certificates, by = c("last_date")) %>%
+  group_by(last_date, qualification_year) %>%
+  summarise(
+    count = n(), 
+    linear_regression = mean(modelled_qualification_year_expired), 
+    .groups = "drop"
+    ) %>%
   plot_ly(
     x = ~last_date,
     y = ~qualification_year,
     type = "scatter",
     mode = "markers",
-    color = ~count,
-    size = ~count
+    #color = ~count,
+    size = ~count,
+    name = "expired certificates"
+  ) %>%
+  layout(
+    xaxis = list(range = c(axis_first_date, axis_last_date)),
+    showlegend = FALSE
+  ) %>%
+  add_trace(
+    x = ~last_date,
+    y = ~linear_regression,
+    name = "regression",
+    mode = "lines",
+    alpha = 1
   )
 ```
 
