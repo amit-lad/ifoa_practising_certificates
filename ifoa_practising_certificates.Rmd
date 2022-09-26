@@ -76,7 +76,7 @@ all_new_certificates <-
 
 all_expired_certificates <-
   certificate_database %>%
-  filter(last_date < max(last_date)-1)
+  filter(last_date < max(last_date))
 
 axis_first_date <- as.Date("2022-08-01")
 axis_last_date <- Sys.Date()
