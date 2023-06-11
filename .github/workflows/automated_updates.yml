@@ -16,7 +16,7 @@ jobs:
     - uses: actions/checkout@master
     - uses: r-lib/actions/setup-r@v2.2.8
       with:
-        r-version: release
+        r-version: 4.2.3
     - uses: r-lib/actions/setup-pandoc@v1
     
     # Run R scripts 
