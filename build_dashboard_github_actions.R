@@ -21,7 +21,8 @@ print("Progress update: Install package: plotly")
 install.packages("plotly")
 print("Progress update: Install package: tidymodels")
 install.packages("tidymodels")
-
+print("Progress update: Install package: xml2")
+install.packages("xml2")
 
 print("Progress update: Scrape data")
 source("scrape_data.R")

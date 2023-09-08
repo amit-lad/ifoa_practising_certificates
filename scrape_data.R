@@ -4,13 +4,16 @@ library(magrittr)
 library(httr)
 library(readr)
 library(purrr)
+library(xml2)
 
 # Definitions and global variables
 url_directory <- "https://www.actuaries.org.uk/actuarial-directory/public-search"
-pc_types_short <- c("CAL", "CLND", "CANL", "CAN", "SYND", "WPAC", 
-                    "SCHE", "SCHE", "SCHE", "SCHE", "SCHE", "SCHE", "SCHE")
-firstname_search <- c("", "", "", "", "", "", 
-                         "[A-C]", "[D-F]", "[G-J]", "[K-N]", "[O-R]", "[S-V]", "[W-Z]")
+pc_types_short <- tibble(pc_types_short = c("CAL", "CLND", "CANL", "CAN", "SYND", "WPAC", "SCHE"))
+firstname_search <- tibble(firstname_search = c("[A-C]", "[D-F]", "[G-J]", "[K-N]", "[O-R]", "[S-V]", "[W-Z]"))
+
+search_matrix <- pc_types_short |> full_join(firstname_search, by = character())
+#search_matrix <- search_matrix |>
+#  filter(pc_types_short == "WPAC", firstname_search == "[Z]")
 
 # Functions
 build_form_query <- function(pc_type, firstname_search, form_id_session) {
@@ -21,8 +24,25 @@ build_form_query <- function(pc_type, firstname_search, form_id_session) {
 }
 
 query_ifoa_website <- function(form_query) {
-  POST(url_directory, body = form_query, encode = "form") %>%
-    read_html() %>% html_node("table") %>% html_table()
+  results <- tibble(
+    "First name" = character(),
+    "Surname" = character(),
+    "Status" = character(),
+    "Practising certificate type" = character(),
+    "Regulatory record" = character()
+  )
+  
+  query_results <- POST(url_directory, body = form_query, encode = "form") 
+  
+  html_results <- query_results |> xml2::read_html()
+  html_table <- try(html_table(html_node(html_results, "table")), silent = TRUE)
+  
+  if (inherits(html_table, "try-error")) {
+    return(results)
+  } else {
+    return(html_table)
+  }
+
 }
 
 # Extract an HTML Node that has the form_id_tag in it
@@ -33,7 +53,7 @@ form_id_session <-
   extract2(13) 
 
 # Build vector of queries
-form_queries <- map2(pc_types_short, firstname_search, build_form_query, form_id_session = form_id_session)
+form_queries <- map2(search_matrix$pc_types_short, search_matrix$firstname_search, build_form_query, form_id_session = form_id_session)
 
 
 # Build vector of people
