@@ -11,7 +11,7 @@ url_directory <- "https://www.actuaries.org.uk/actuarial-directory/public-search
 pc_types_short <- tibble(pc_types_short = c("CAL", "CLND", "CANL", "CAN", "SYND", "WPAC", "SCHE"))
 firstname_search <- tibble(firstname_search = c("[A-C]", "[D-F]", "[G-J]", "[K-N]", "[O-R]", "[S-V]", "[W-Z]"))
 
-search_matrix <- pc_types_short |> full_join(firstname_search, by = character())
+search_matrix <- pc_types_short |> cross_join(firstname_search)
 #search_matrix <- search_matrix |>
 #  filter(pc_types_short == "WPAC", firstname_search == "[Z]")
 
