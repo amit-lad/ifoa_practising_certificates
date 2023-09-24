@@ -50,7 +50,8 @@ form_id_session <-
   GET(url_directory) %>%
   read_html() %>%
   html_nodes("input") %>%
-  extract2(13) 
+  extract2(5) |>
+  xml_attr("value")
 
 # Build vector of queries
 form_queries <- map2(search_matrix$pc_types_short, search_matrix$firstname_search, build_form_query, form_id_session = form_id_session)
