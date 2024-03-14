@@ -23,6 +23,10 @@ print("Progress update: Install package: tidymodels")
 install.packages("tidymodels")
 print("Progress update: Install package: xml2")
 install.packages("xml2")
+print("Progress update: Install package: lava")
+install.packages("lava")
+
+
 
 print("Progress update: Scrape data")
 source("scrape_data.R")
