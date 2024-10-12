@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: r-lib/actions/setup-pandoc@v2
       - uses: r-lib/actions/setup-r@v2
-      - uses: r-lib/actions/setup-renv@v2    - uses: actions/checkout@master
+      - uses: r-lib/actions/setup-renv@v2    
       - uses: r-lib/actions/setup-pandoc@v1
     
     # Run R scripts 
