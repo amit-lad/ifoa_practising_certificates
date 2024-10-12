@@ -8,7 +8,7 @@ on:
 
 
 jobs:
-  scrape_data_update_dashboard:
+  # scrape_data_update_dashboard:
     runs-on: macos-latest
 
     steps:
