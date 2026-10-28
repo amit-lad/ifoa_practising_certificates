@@ -1,0 +1,531 @@
+---
+title: "IFoA Practising Certificates"
+output-file: index.html
+format:
+  dashboard:
+    theme:
+      light: flatly
+      dark: darkly
+    embed-resources: true
+    nav-buttons:
+      - text: amitlad.com
+        href: https://amitlad.com
+---
+
+```{r}
+#| include: false
+library(tidyverse)
+
+certificate_labels <- c(
+  "Chief Actuary (Life)" = "Life",
+  "Chief Actuary (Life, Non-Directive)" = "Life (Non-Directive)",
+  "With Profits Actuary" = "With Profits",
+  "Chief Actuary (non-Life with Lloyd's)" = "Non-Life with Lloyd's",
+  "Chief Actuary (non-Life without Lloyd's)" = "Non-Life ex Lloyd's",
+  "Lloyd's Syndicate Actuary" = "Syndicate",
+  "Scheme Actuary" = "Scheme"
+)
+
+snapshot_dates <- readRDS("database/snapshot_dates.rds")
+latest_snapshot <- max(snapshot_dates)
+days_since_snapshot <- as.numeric(Sys.Date() - latest_snapshot)
+
+spells <-
+  readRDS("database/certificate_database.rds") |>
+  mutate(
+    certificate = certificate_labels[certificate],
+    fellow = case_when(
+      fellow_type == "Fellow FIA" ~ "FIA",
+      fellow_type == "Fellow FFA" ~ "FFA",
+      TRUE ~ "Unknown"
+    ),
+    across(c(first_date, last_date, joined_after, left_before), format)
+  ) |>
+  select(first_name, last_name, certificate, first_date, last_date, joined_after, left_before, current,
+         fellow, qualification_year, cera, regulatory_record)
+
+# Periods of more than 14 days without a successful scrape.
+data_gaps <-
+  tibble(start = lag(snapshot_dates), end = snapshot_dates) |>
+  filter(end - start > 14)
+
+ojs_define(
+  spells_raw = spells,
+  snapshot_dates_raw = format(snapshot_dates),
+  certs = unname(certificate_labels)
+)
+```
+
+# {.sidebar}
+
+```{ojs}
+viewof certFilter = {
+  const input = Inputs.checkbox(certs, {value: certs.filter(c => c !== "Scheme"), label: "Certificate"});
+  // One certificate per line rather than wrapping several onto a row.
+  input.querySelector(":scope > div").style.cssText = "display: flex; flex-direction: column; align-items: flex-start;";
+  return input;
+}
+viewof yearRange = {
+  // Two handles on one track; each stops at the other so "from" can never pass "to".
+  const form = html`<div class="year-range">
+    <style>
+      .sidebar { --slider-accent: #2a78d6; }
+      .quarto-dark .sidebar { --slider-accent: #3987e5; }
+      .slider-header { display: flex; justify-content: space-between; }
+      .recent-days input { width: 100%; margin: 0; accent-color: var(--slider-accent); }
+      .year-range, .recent-days { margin: 0.5rem 0 1rem; }
+      .year-range-track { position: relative; height: 24px; }
+      .year-range-rail, .year-range-fill { position: absolute; top: 10px; height: 4px; border-radius: 2px; }
+      .year-range-rail { left: 0; right: 0; background: rgba(127, 127, 127, 0.3); }
+      .year-range-fill { background: var(--slider-accent); }
+      .year-range input {
+        position: absolute; left: 0; top: 0; width: 100%; height: 24px; margin: 0;
+        background: none; pointer-events: none; -webkit-appearance: none; appearance: none;
+      }
+      .year-range input::-webkit-slider-thumb {
+        pointer-events: auto; -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+        background: var(--slider-accent); border: none; cursor: pointer;
+      }
+      .year-range input::-moz-range-thumb {
+        pointer-events: auto; width: 16px; height: 16px; border-radius: 50%;
+        background: var(--slider-accent); border: none; cursor: pointer;
+      }
+    </style>
+    <div class="slider-header"><span>Qualified</span><output></output></div>
+    <div class="year-range-track">
+      <div class="year-range-rail"></div>
+      <div class="year-range-fill"></div>
+      <input type="range" min=${minYear} max=${maxYear} step="1" value=${minYear} aria-label="Qualified from">
+      <input type="range" min=${minYear} max=${maxYear} step="1" value=${maxYear} aria-label="Qualified to">
+    </div>
+  </div>`;
+  const [from, to] = form.querySelectorAll("input");
+  const fill = form.querySelector(".year-range-fill");
+  const output = form.querySelector("output");
+  const position = year => `${100 * (year - minYear) / (maxYear - minYear)}%`;
+  const update = moved => {
+    if (+from.value > +to.value) (moved === from ? from : to).value = moved === from ? to.value : from.value;
+    form.value = [+from.value, +to.value];
+    output.textContent = `${from.value} – ${to.value}`;
+    fill.style.left = position(+from.value);
+    fill.style.right = `calc(100% - ${position(+to.value)})`;
+    // If both handles reach the top year, keep "from" on top so it can still be dragged back down.
+    from.style.zIndex = +from.value === maxYear ? 2 : "";
+  };
+  from.addEventListener("input", () => update(from));
+  to.addEventListener("input", () => update(to));
+  update();
+  return form;
+}
+viewof recentDays = {
+  // A plain slider with its value shown at the end of the label row, styled to match the year range.
+  const form = html`<div class="recent-days">
+    <div class="slider-header"><span>Recent changes (days)</span><output></output></div>
+    <input type="range" min="1" max="365" step="1" value="30" aria-label="Recent changes (days)">
+  </div>`;
+  const input = form.querySelector("input");
+  const output = form.querySelector("output");
+  const update = () => {
+    form.value = +input.value;
+    output.textContent = input.value;
+  };
+  input.addEventListener("input", update);
+  update();
+  return form;
+}
+```
+
+Filters apply to every page. Data comes from daily snapshots of the IFoA public directory.
+
+```{ojs}
+dataDownload = {
+  // Downloads every record behind the People page, ignoring all filters, with the People table's columns and headers.
+  const button = html`<button type="button" class="btn btn-outline-primary btn-sm w-100">Download CSV</button>`;
+  button.onclick = () => {
+    const isoDate = d3.utcFormat("%Y-%m-%d");
+    const yesNo = d => d ? "Yes" : "No";
+    const rows = d3.sort(spells, d => d.last_name, d => d.first_name).map(d => Object.fromEntries(peopleColumns.map(c => [
+      peopleHeader[c],
+      d[c] instanceof Date ? isoDate(d[c]) : typeof d[c] === "boolean" ? yesNo(d[c]) : d[c]
+    ])));
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([d3.csvFormat(rows)], {type: "text/csv"}));
+    link.download = `ifoa_practising_certificates_${isoDate(latest)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+  return html`<div>${button}<div style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">All ${spells.length.toLocaleString()} certificate records, ignoring the filters.</div></div>`;
+}
+```
+
+# Overview
+
+## Row {height="20%"}
+
+### Column {width="20%"}
+
+```{r}
+#| content: valuebox
+#| title: "Last successful scrape"
+list(
+  icon = "calendar-check",
+  color = if (days_since_snapshot > 3) "warning" else "success",
+  value = format(latest_snapshot, "%d %b %Y")
+)
+```
+
+### Column {width="80%"}
+
+```{ojs}
+//| padding: 0
+html`<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; height: 100%;">
+  ${[
+    ["Current certificates", current.length],
+    ["People holding a certificate", new Set(current.map(d => d.name)).size],
+    [`Gained in last ${recentDays} days`, recentEvents.filter(d => d.change === "Gained").length],
+    [`Relinquished in last ${recentDays} days`, recentEvents.filter(d => d.change === "Relinquished").length]
+  ].map(([label, value]) => html`<div style="display: flex; flex-direction: column; justify-content: center; padding: 12px 16px; border-radius: 6px; background: rgba(127, 127, 127, 0.12);">
+    <div style="font-size: 0.9rem; opacity: 0.8;">${label}</div>
+    <div style="font-size: 2rem; font-weight: 600;">${value.toLocaleString()}</div>
+  </div>`)}
+</div>`
+```
+
+## Row
+
+```{ojs}
+//| title: Holders over time (dotted lines span periods with no successful scrapes)
+fillCard((width, height) => Plot.plot({
+  style: {background: "transparent"},
+  width,
+  height,
+  marginLeft: 50,
+  x: {type: "utc", domain: [snapshots[0], latest], label: null, ticks: "year", tickFormat: "%Y"},
+  y: {label: "Certificates held", grid: true, zero: true},
+  color: {
+    domain: certs.filter(c => certFilter.includes(c)),
+    range: certs.filter(c => certFilter.includes(c)).map(colourOf),
+    legend: true
+  },
+  marks: [
+    Plot.ruleY([0], {strokeOpacity: 0.3}),
+    Plot.lineY(gapBridges, {x: "date", y: "holders", z: "bridge", stroke: "certificate", strokeWidth: 1.5, strokeDasharray: "2,4"}),
+    Plot.lineY(holdersOverTime, {x: "date", y: "holders", stroke: "certificate", strokeWidth: 2}),
+    Plot.tip(holdersOverTime.filter(d => !isNaN(d.holders)), Plot.pointer({
+      x: "date", y: "holders", stroke: "certificate",
+      title: d => `${d.certificate}\n${formatDate(d.date)}\n${d.holders} holders`
+    }))
+  ]
+}), 40)
+```
+
+# Changes
+
+## Row {height="15%"}
+
+```{ojs}
+viewof changeSearch = Inputs.search(recentEvents, {placeholder: "Search by name", label: "Search", format: () => ""})
+viewof changeTypes = Inputs.checkbox(["Gained", "Relinquished"], {value: ["Gained", "Relinquished"], label: "Show"})
+```
+
+## Row
+
+```{ojs}
+//| title: Recent changes
+{
+  // Count shown here rather than in the search box, so it reflects the Show options too.
+  const rows = changeSearch.filter(d => changeTypes.includes(d.change));
+  return fillCard((width, height) => html`<div class="no-select">${noSelectStyle}<div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 4px;">${rows.length} changes in the last ${recentDays} days</div>
+  ${Inputs.table(rows, {
+  height,
+  // Render every row up front: lazy loading on scroll doesn't trigger inside dashboard cards.
+  rows: rows.length + 1,
+  columns: ["date", "change", "first_name", "last_name", "certificate", "since", "fellow", "qualification_year"],
+  header: {
+    date: "Seen on", change: "Change", first_name: "First name", last_name: "Surname",
+    certificate: "Certificate", since: "Previous snapshot", fellow: "Fellowship", qualification_year: "Qualified"
+  },
+  format: {date: formatDate, since: formatDate, qualification_year: d => d},
+  // Same widths as the People table; the last column takes any spare width.
+  width: {...tableColumnWidths, qualification_year: undefined},
+  align: {qualification_year: "left"},
+  layout: "fixed"
+  })}</div>`, 28);
+}
+```
+
+# People
+
+## Row {height="15%"}
+
+```{ojs}
+viewof search = Inputs.search(filtered, {placeholder: "Search by name", label: "Search", format: () => ""})
+viewof peopleOptions = {
+  const input = Inputs.checkbox(["Current holders only", "Relinquished only", "Regulatory record only"], {label: "Show"});
+  // Keep the options on one row (wrapping only on narrow screens) instead of stacking in the default input width.
+  input.style.maxWidth = "none";
+  input.querySelector(":scope > div").style.cssText = "display: flex; flex-wrap: wrap; column-gap: 1.5rem; width: auto;";
+  input.querySelectorAll(":scope > div > label").forEach(label => label.style.whiteSpace = "nowrap");
+  return input;
+}
+```
+
+## Row
+
+```{ojs}
+//| title: Certificate holders
+fillCard((width, height) => html`<div class="no-select">${noSelectStyle}
+  <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 4px;">${peopleRows.length} records</div>
+  ${Inputs.table(peopleRows, {
+    height,
+    // Render every row up front: lazy loading on scroll doesn't trigger inside dashboard cards.
+    rows: peopleRows.length + 1,
+    columns: peopleColumns,
+    header: peopleHeader,
+    format: {
+      first_date: formatDate, last_date: formatDate, qualification_year: d => d,
+      current: d => d ? "Yes" : "No", cera: d => d ? "Yes" : "No", regulatory_record: d => d ? "Yes" : "No"
+    },
+    sort: "last_name",
+    width: tableColumnWidths,
+    align: {qualification_year: "left"},
+    layout: "fixed"
+  })}</div>`, 28)
+```
+
+# About the data
+
+## Row {height="100%"}
+
+### Column {width="60%"}
+
+::: {.card title="How the data is collected"}
+Each day, a GitHub Actions workflow searches the [IFoA public directory](https://my.actuaries.org.uk) for Fellows holding each type of practising certificate and saves the results. This dashboard combines those snapshots.
+
+- **Holding a certificate.** A certificate counts as held from the first snapshot it appears in. It counts as relinquished only once it has been missing from at least 3 successful snapshots spanning more than 30 days, so a brief drop-out from the directory isn't counted as a change.
+- **Dates of changes** are the first snapshot that shows the change. After a gap in the data, the change could have happened at any time during the gap.
+- **CERA** counts anyone shown as CERA in any snapshot. The directory used since 2026 rarely shows CERA, so people who became CERA or first appeared since then are undercounted.
+- **Qualification year** is the year shown with the Fellow's status in the directory.
+- **People** are matched by name, so two people with the same name and certificate are treated as one.
+- The first snapshot was taken on `r format(min(snapshot_dates), "%d %b %Y")`. There are `r length(snapshot_dates)` successful snapshots in total.
+:::
+
+### Column {width="40%"}
+
+```{r}
+#| title: Periods with no successful scrapes (over 14 days)
+data_gaps |>
+  mutate(days = as.numeric(end - start), across(c(start, end), \(d) format(d, "%d %b %Y"))) |>
+  knitr::kable(col.names = c("Last snapshot before", "Next snapshot", "Days"))
+```
+
+<!-- Data preparation for the OJS charts. Hidden, but kept on a page so Quarto runs it. -->
+
+## Row {.d-none height="0%"}
+
+```{ojs}
+//| classes: d-none
+spells = transpose(spells_raw).map(d => ({
+  ...d,
+  name: `${d.first_name} ${d.last_name}`,
+  first_date: new Date(d.first_date),
+  last_date: new Date(d.last_date),
+  joined_after: d.joined_after ? new Date(d.joined_after) : null,
+  left_before: d.left_before ? new Date(d.left_before) : null
+}))
+```
+
+```{ojs}
+//| classes: d-none
+snapshots = snapshot_dates_raw.map(d => new Date(d))
+```
+
+```{ojs}
+//| classes: d-none
+latest = snapshots[snapshots.length - 1]
+```
+
+```{ojs}
+//| classes: d-none
+day = 864e5
+```
+
+```{ojs}
+//| classes: d-none
+minYear = d3.min(spells, d => d.qualification_year)
+```
+
+```{ojs}
+//| classes: d-none
+maxYear = d3.max(spells, d => d.qualification_year)
+```
+
+```{ojs}
+//| classes: d-none
+dark = Generators.observe(notify => {
+  // Follows the dashboard's light/dark toggle so chart colours use the step validated for that surface.
+  const check = () => notify(document.body.classList.contains("quarto-dark"));
+  check();
+  const observer = new MutationObserver(check);
+  observer.observe(document.body, {attributes: true, attributeFilter: ["class"]});
+  return () => observer.disconnect();
+})
+```
+
+```{ojs}
+//| classes: d-none
+colours = dark
+  ? ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9"]
+  : ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6"]
+```
+
+```{ojs}
+//| classes: d-none
+colourOf = cert => colours[certs.indexOf(cert)]
+```
+
+```{ojs}
+//| classes: d-none
+peopleRows = search.filter(d =>
+  (!peopleOptions.includes("Current holders only") || d.current) &&
+  (!peopleOptions.includes("Relinquished only") || !d.current) &&
+  (!peopleOptions.includes("Regulatory record only") || d.regulatory_record)
+)
+```
+
+```{ojs}
+//| classes: d-none
+peopleColumns = ["first_name", "last_name", "certificate", "first_date", "last_date", "current", "fellow",
+                 "qualification_year", "cera", "regulatory_record"]
+```
+
+```{ojs}
+//| classes: d-none
+peopleHeader = {
+  return {
+    first_name: "First name", last_name: "Surname", certificate: "Certificate", first_date: "First seen",
+    last_date: "Last seen", current: "Current", fellow: "Fellowship", qualification_year: "Qualified",
+    cera: "CERA", regulatory_record: "Regulatory record"
+  };
+}
+```
+
+
+```{ojs}
+//| classes: d-none
+tableColumnWidths = {
+  // Column widths shared by the Changes and People tables so matching columns line up.
+  return {
+    date: 110, change: 110, first_name: 185, last_name: 140, certificate: 160, first_date: 110,
+    last_date: 110, since: 140, current: 70, fellow: 95, qualification_year: 85, cera: 60
+  };
+}
+```
+
+```{ojs}
+//| classes: d-none
+noSelectStyle = html`<style>
+  /* Hide the row-selection checkboxes Inputs.table adds as its first column. */
+  .no-select table { width: 100%; }
+  .no-select thead th { white-space: normal; word-break: normal; overflow-wrap: normal; vertical-align: bottom; }
+  .no-select table tr > :first-child { display: none; }
+  /* Highlight the row under the pointer. */
+  .no-select table tbody tr:hover td { background: rgba(127, 127, 127, 0.15); }
+</style>`
+```
+
+```{ojs}
+//| classes: d-none
+fillCard = function(draw, reserve = 0) {
+  // Redraws a chart to fill its card, leaving `reserve` pixels for legends and notes. It measures the
+  // card's output area (which Quarto sizes to the card) and positions the chart absolutely, so the chart
+  // can't change the size being measured.
+  const container = document.createElement("div");
+  container.style.cssText = "position: relative; width: 100%; height: 260px;";
+  const chart = document.createElement("div");
+  chart.style.cssText = "position: absolute; inset: 0;";
+  container.append(chart);
+  let frame;
+  const observer = new ResizeObserver(([entry]) => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      const width = Math.floor(entry.contentRect.width);
+      const height = Math.max(260, Math.floor(entry.contentRect.height) - 4);
+      container.style.height = `${height}px`;
+      if (width > 0) chart.replaceChildren(draw(width, height - reserve));
+    });
+  });
+  (function attach() {
+    if (!container.isConnected) return requestAnimationFrame(attach);
+    observer.observe(container.closest(".cell-output") ?? container);
+  })();
+  return container;
+}
+```
+
+```{ojs}
+//| classes: d-none
+formatDate = d3.utcFormat("%d %b %Y")
+```
+
+```{ojs}
+//| classes: d-none
+filtered = spells.filter(d =>
+  certFilter.includes(d.certificate) &&
+  d.qualification_year >= yearRange[0] && d.qualification_year <= yearRange[1]
+)
+```
+
+```{ojs}
+//| classes: d-none
+current = filtered.filter(d => d.current)
+```
+
+```{ojs}
+//| classes: d-none
+// A change is recorded on the first snapshot that shows it, so after a data gap the real date is earlier.
+events = [
+  ...filtered.filter(d => d.joined_after).map(d => ({
+    ...d, change: "Gained", date: d.first_date, since: d.joined_after
+  })),
+  ...filtered.filter(d => d.left_before).map(d => ({
+    ...d, change: "Relinquished", date: d.left_before, since: d.last_date
+  }))
+].map(d => ({...d, after_gap: d.date - d.since > 14 * day}))
+```
+
+```{ojs}
+//| classes: d-none
+recentEvents = events
+  .filter(d => d.date > latest - recentDays * day)
+  .sort((a, b) => b.date - a.date)
+```
+
+```{ojs}
+//| classes: d-none
+// Holders of each selected certificate on every snapshot date, with a break in the line across data gaps.
+holdersOverTime = certs.filter(c => certFilter.includes(c)).flatMap(certificate => {
+  const certSpells = filtered.filter(d => d.certificate === certificate);
+  const rows = [];
+  snapshots.forEach((date, i) => {
+    if (i > 0 && date - snapshots[i - 1] > 14 * day) {
+      // Break the solid line across a data gap; gapBridges draws it dotted instead.
+      rows.push({certificate, date: new Date((+date + +snapshots[i - 1]) / 2), holders: NaN});
+    }
+    const holders = certSpells.filter(d => d.first_date <= date && (d.current || d.last_date >= date)).length;
+    rows.push({certificate, date, holders});
+  });
+  return rows;
+})
+```
+
+```{ojs}
+//| classes: d-none
+gapBridges = holdersOverTime.flatMap((d, i, rows) =>
+  isNaN(d.holders) ? [
+    {...rows[i - 1], bridge: `${d.certificate} ${i}`},
+    {...rows[i + 1], bridge: `${d.certificate} ${i}`}
+  ] : []
+)
+```
+

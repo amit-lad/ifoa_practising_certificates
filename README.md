@@ -1,11 +1,11 @@
 # ifoa_practising_certificates
 
-Practising certificate dashboard: scrapes the IFoA public directory, builds an RDS database, and renders a [flexdashboard](https://rmarkdown.rstudio.com/flexdashboard/) site.
+Practising certificate dashboard: scrapes the IFoA public directory, builds an RDS database, and renders a [Quarto dashboard](https://quarto.org/docs/dashboards/) site. Filters in the sidebar run in the browser (Observable JS), so the site is fully static.
 
 ## Requirements
 
 - **R 4.4.3** (see `renv.lock`)
-- **Pandoc** (bundled with RStudio, or install separately)
+- **Quarto 1.4.549** (the version CI uses; it bundles Pandoc)
 
 R packages are managed with `renv`. The `.Rprofile` activates `renv` automatically; install the locked dependencies with:
 
@@ -15,7 +15,7 @@ Rscript -e 'renv::restore(prompt = FALSE)'
 
 ## Run the pipeline
 
-From the repository root, run the full pipeline (scrape → `build_database.R` → render `ifoa_practising_certificates.Rmd` to `_site/index.html`):
+From the repository root, run the full pipeline (scrape → `build_database.R` → render `ifoa_practising_certificates.qmd` to `_site/index.html`):
 
 ```bash
 Rscript build_dashboard_github_actions.R
@@ -33,9 +33,15 @@ Rscript scrape_data.R
 Rscript build_database.R
 ```
 
+```bash
+quarto render ifoa_practising_certificates.qmd --output-dir _site
+```
+
+`build_database.R` writes `database/certificate_database.rds` (one row per spell of holding a certificate) and `database/snapshot_dates.rds` (dates with a successful scrape). A certificate only counts as relinquished once it has been missing from at least 3 successful snapshots spanning more than 30 days, so partial scrapes and brief drop-outs from the directory aren't counted as changes.
+
 ## View the site locally
 
-Open `_site/index.html` in a browser, or serve the folder over HTTP:
+The rendered page is self-contained. Open `_site/index.html` in a browser, or serve the folder over HTTP:
 
 ```bash
 cd _site && python3 -m http.server 8080

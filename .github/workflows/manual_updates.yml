@@ -17,7 +17,10 @@ jobs:
         with:
           r-version: '4.4.3'
       - uses: r-lib/actions/setup-renv@v2
-      - uses: r-lib/actions/setup-pandoc@v2
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          # Pinned: the dashboard works around OJS quirks in this version.
+          version: 1.4.549
 
       - name: Install packages and run R scripts
         run: |
