@@ -41,7 +41,7 @@ quarto render ifoa_practising_certificates.qmd --output-dir _site
 
 ## View the site locally
 
-The rendered page is self-contained. Open `_site/index.html` in a browser, or serve the folder over HTTP:
+The rendered page loads its stylesheets and scripts from `_site/ifoa_practising_certificates_files/`, so keep that folder alongside `index.html`. Open `_site/index.html` in a browser, or serve the folder over HTTP:
 
 ```bash
 cd _site && python3 -m http.server 8080

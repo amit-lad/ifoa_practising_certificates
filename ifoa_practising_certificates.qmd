@@ -6,7 +6,6 @@ format:
     theme:
       light: flatly
       dark: darkly
-    embed-resources: true
     nav-buttons:
       - text: amitlad.com
         href: https://amitlad.com
