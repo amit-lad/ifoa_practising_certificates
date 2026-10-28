@@ -67,8 +67,8 @@ viewof yearRange = {
   // Two handles on one track; each stops at the other so "from" can never pass "to".
   const form = html`<div class="year-range">
     <style>
-      .sidebar { --slider-accent: #2a78d6; }
-      .quarto-dark .sidebar { --slider-accent: #3987e5; }
+      body { --slider-accent: #2a78d6; }
+      body.quarto-dark { --slider-accent: #3987e5; }
       .slider-header { display: flex; justify-content: space-between; }
       .recent-days input { width: 100%; margin: 0; accent-color: var(--slider-accent); }
       .year-range, .recent-days { margin: 0.5rem 0 1rem; }
@@ -161,19 +161,19 @@ dataDownload = {
 ## Row {height="20%"}
 
 ```{ojs}
-statBox("Last successful scrape", formatDate(latest), scrapeStatus)
+statBox("calendar-check", "Last successful scrape", formatDate(latest), scrapeStatus)
 ```
 
 ```{ojs}
-statBox("Current certificates", current.length.toLocaleString())
+statBox("award", "Current certificates", current.length.toLocaleString())
 ```
 
 ```{ojs}
-statBox(`Gained in the last ${recentDays} days`, recentEvents.filter(d => d.change === "Gained").length.toLocaleString())
+statBox("plus-circle", `Gained in the last ${recentDays} days`, recentEvents.filter(d => d.change === "Gained").length.toLocaleString())
 ```
 
 ```{ojs}
-statBox(`Relinquished in the last ${recentDays} days`, recentEvents.filter(d => d.change === "Relinquished").length.toLocaleString())
+statBox("dash-circle", `Relinquished in the last ${recentDays} days`, recentEvents.filter(d => d.change === "Relinquished").length.toLocaleString())
 ```
 
 ## Row
@@ -398,12 +398,16 @@ peopleHeader = {
 
 ```{ojs}
 //| classes: d-none
-statBox = function(label, value, note) {
-  // One summary figure per card: label, large value and an optional status line.
-  return html`<div style="display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 4px 8px;">
-    <div style="font-size: 0.9rem; opacity: 0.8;">${label}</div>
-    <div style="font-size: 2rem; font-weight: 600; line-height: 1.2;">${value}</div>
-    ${note ?? ""}
+statBox = function(icon, label, value, note) {
+  // One summary figure per card, laid out the same in every card so labels, icons and values line up across
+  // the row: a one-line label, then a Bootstrap icon beside the large value, then an optional status line.
+  return html`<div style="display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 0 4px; min-width: 0;">
+    <div style="font-size: 0.85rem; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title=${label}>${label}</div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <i class="bi bi-${icon}" style="font-size: 1.5rem; line-height: 1; color: var(--slider-accent);" aria-hidden="true"></i>
+      <span style="font-size: 1.6rem; font-weight: 600; line-height: 1.2; white-space: nowrap;">${value}</span>
+    </div>
+    <div style="font-size: 0.85rem; min-height: 1.2em;">${note ?? ""}</div>
   </div>`;
 }
 ```
@@ -414,8 +418,8 @@ scrapeStatus = {
   // Checked when the page is viewed, so an old copy of the site still shows that it's out of date.
   const daysOld = Math.floor((Date.now() - latest) / day);
   return daysOld > 3
-    ? html`<div style="font-size: 0.85rem; color: ${dark ? "#fab219" : "#9a6700"};">⚠ ${daysOld} days ago</div>`
-    : html`<div style="font-size: 0.85rem; color: ${dark ? "#0ca30c" : "#006300"};">✓ Up to date</div>`;
+    ? html`<span style="color: ${dark ? "#fab219" : "#9a6700"};">⚠ ${daysOld} days ago</span>`
+    : html`<span style="color: ${dark ? "#0ca30c" : "#006300"};">✓ Up to date</span>`;
 }
 ```
 
