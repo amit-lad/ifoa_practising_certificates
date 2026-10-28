@@ -1,7 +1,0 @@
-.git
-.gitignore
-.github
-renv/library
-renv/local
-renv/cellar
-_site

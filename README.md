@@ -2,51 +2,40 @@
 
 Practising certificate dashboard: scrapes the IFoA public directory, builds an RDS database, and renders a [flexdashboard](https://rmarkdown.rstudio.com/flexdashboard/) site.
 
-## Docker
+## Requirements
 
-The image uses **R 4.4.3** (see `renv.lock`), **Pandoc**, and `renv::restore()` for dependencies. The default command runs `build_dashboard_github_actions.R` (scrape → `build_database.R` → render `ifoa_practising_certificates.Rmd` to `_site/index.html`).
+- **R 4.4.3** (see `renv.lock`)
+- **Pandoc** (bundled with RStudio, or install separately)
 
-### Build the image
-
-From the repository root:
-
-```bash
-docker build -t ifoa-dashboard .
-```
-
-### Run the full pipeline
-
-Mount `data_raw`, `database`, and `_site` so outputs persist on your machine. The scrape step needs **network access** (outbound HTTPS).
+R packages are managed with `renv`. The `.Rprofile` activates `renv` automatically; install the locked dependencies with:
 
 ```bash
-docker run --rm \
-  -v "$(pwd)/data_raw:/app/data_raw" \
-  -v "$(pwd)/database:/app/database" \
-  -v "$(pwd)/_site:/app/_site" \
-  ifoa-dashboard
+Rscript -e 'renv::restore(prompt = FALSE)'
 ```
 
-To use **your current** R scripts and Rmd without rebuilding the image (recommended while developing), mount them over `/app`:
+## Run the pipeline
+
+From the repository root, run the full pipeline (scrape → `build_database.R` → render `ifoa_practising_certificates.Rmd` to `_site/index.html`):
 
 ```bash
-docker run --rm \
-  -v "$(pwd)/scrape_data.R:/app/scrape_data.R" \
-  -v "$(pwd)/build_database.R:/app/build_database.R" \
-  -v "$(pwd)/build_dashboard_github_actions.R:/app/build_dashboard_github_actions.R" \
-  -v "$(pwd)/ifoa_practising_certificates.Rmd:/app/ifoa_practising_certificates.Rmd" \
-  -v "$(pwd)/data_raw:/app/data_raw" \
-  -v "$(pwd)/database:/app/database" \
-  -v "$(pwd)/_site:/app/_site" \
-  ifoa-dashboard
+Rscript build_dashboard_github_actions.R
 ```
 
-### View the site locally
+The scrape step needs **network access** (outbound HTTPS to `my.actuaries.org.uk`). Without it, the scrape returns no new rows, but the database and dashboard are still rebuilt from the existing `data_raw/*.rds` snapshots.
 
-After a successful run, open the generated HTML in a browser (paths shown for a typical clone location; adjust to your machine):
+To run only part of the pipeline:
 
-`file:///path/to/ifoa_practising_certificates/_site/index.html`
+```bash
+Rscript scrape_data.R
+```
 
-Or serve the folder and use HTTP, for example:
+```bash
+Rscript build_database.R
+```
+
+## View the site locally
+
+Open `_site/index.html` in a browser, or serve the folder over HTTP:
 
 ```bash
 cd _site && python3 -m http.server 8080
@@ -54,13 +43,6 @@ cd _site && python3 -m http.server 8080
 
 Then visit `http://localhost:8080/index.html`.
 
-### Run only part of the pipeline
+## Automated updates
 
-Override the command, for example scrape only:
-
-```bash
-docker run --rm \
-  -v "$(pwd)/scrape_data.R:/app/scrape_data.R" \
-  -v "$(pwd)/data_raw:/app/data_raw" \
-  ifoa-dashboard Rscript scrape_data.R
-```
+The `automated_updates` GitHub Actions workflow runs the pipeline daily on an `ubuntu-24.04` runner and commits the refreshed data, database and site to `main`. The `manual_updates` workflow does the same on demand.
