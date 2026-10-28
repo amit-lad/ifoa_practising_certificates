@@ -27,8 +27,6 @@ certificate_labels <- c(
 )
 
 snapshot_dates <- readRDS("database/snapshot_dates.rds")
-latest_snapshot <- max(snapshot_dates)
-days_since_snapshot <- as.numeric(Sys.Date() - latest_snapshot)
 
 spells <-
   readRDS("database/certificate_database.rds") |>
@@ -162,33 +160,20 @@ dataDownload = {
 
 ## Row {height="20%"}
 
-### Column {width="20%"}
-
-```{r}
-#| content: valuebox
-#| title: "Last successful scrape"
-list(
-  icon = "calendar-check",
-  color = if (days_since_snapshot > 3) "warning" else "success",
-  value = format(latest_snapshot, "%d %b %Y")
-)
+```{ojs}
+statBox("Last successful scrape", formatDate(latest), scrapeStatus)
 ```
 
-### Column {width="80%"}
+```{ojs}
+statBox("Current certificates", current.length.toLocaleString())
+```
 
 ```{ojs}
-//| padding: 0
-html`<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; height: 100%;">
-  ${[
-    ["Current certificates", current.length],
-    ["People holding a certificate", new Set(current.map(d => d.name)).size],
-    [`Gained in last ${recentDays} days`, recentEvents.filter(d => d.change === "Gained").length],
-    [`Relinquished in last ${recentDays} days`, recentEvents.filter(d => d.change === "Relinquished").length]
-  ].map(([label, value]) => html`<div style="display: flex; flex-direction: column; justify-content: center; padding: 12px 16px; border-radius: 6px; background: rgba(127, 127, 127, 0.12);">
-    <div style="font-size: 0.9rem; opacity: 0.8;">${label}</div>
-    <div style="font-size: 2rem; font-weight: 600;">${value.toLocaleString()}</div>
-  </div>`)}
-</div>`
+statBox(`Gained in the last ${recentDays} days`, recentEvents.filter(d => d.change === "Gained").length.toLocaleString())
+```
+
+```{ojs}
+statBox(`Relinquished in the last ${recentDays} days`, recentEvents.filter(d => d.change === "Relinquished").length.toLocaleString())
 ```
 
 ## Row
@@ -410,6 +395,29 @@ peopleHeader = {
 }
 ```
 
+
+```{ojs}
+//| classes: d-none
+statBox = function(label, value, note) {
+  // One summary figure per card: label, large value and an optional status line.
+  return html`<div style="display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 4px 8px;">
+    <div style="font-size: 0.9rem; opacity: 0.8;">${label}</div>
+    <div style="font-size: 2rem; font-weight: 600; line-height: 1.2;">${value}</div>
+    ${note ?? ""}
+  </div>`;
+}
+```
+
+```{ojs}
+//| classes: d-none
+scrapeStatus = {
+  // Checked when the page is viewed, so an old copy of the site still shows that it's out of date.
+  const daysOld = Math.floor((Date.now() - latest) / day);
+  return daysOld > 3
+    ? html`<div style="font-size: 0.85rem; color: ${dark ? "#fab219" : "#9a6700"};">⚠ ${daysOld} days ago</div>`
+    : html`<div style="font-size: 0.85rem; color: ${dark ? "#0ca30c" : "#006300"};">✓ Up to date</div>`;
+}
+```
 
 ```{ojs}
 //| classes: d-none
