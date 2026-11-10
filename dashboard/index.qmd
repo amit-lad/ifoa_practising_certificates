@@ -1,6 +1,5 @@
 ---
 title: "IFoA Practising Certificates"
-output-file: index.html
 format:
   dashboard:
     theme:
@@ -9,6 +8,14 @@ format:
     nav-buttons:
       - text: amitlad.com
         href: https://amitlad.com
+    include-in-header:
+      # Quarto's sidebar code (from bslib) uses jQuery to tell Shiny when the
+      # sidebar opens or closes. Static dashboards have no jQuery or Shiny, so
+      # stand in a jQuery that ignores those calls, to avoid console errors.
+      text: |
+        <script>
+        if (!window.jQuery) window.$ = () => ({ trigger() {} });
+        </script>
 ---
 
 # {.sidebar}
@@ -275,7 +282,7 @@ Each day, a GitHub Actions workflow searches the [IFoA public directory](https:/
 
 ```{ojs}
 //| classes: d-none
-data = FileAttachment("database/dashboard_data.json").json()
+data = FileAttachment("dashboard_data.json").json()
 ```
 
 ```{ojs}

@@ -1,9 +1,10 @@
-# Netlify renders the dashboard. GitHub Actions only updates the data (data_raw/ and database/);
-# each data commit to main triggers a Netlify build. See netlify_build.sh.
+# Netlify renders the dashboard. GitHub Actions only updates the data; each
+# data commit to main triggers a Netlify build. See dashboard/netlify_build.sh.
 [build]
-  command = "bash netlify_build.sh"
-  publish = "_site"
+  command = "bash dashboard/netlify_build.sh"
+  publish = "dashboard/_site"
 
 [build.environment]
-  # Not used by the build; set to a supported version to avoid Netlify's Node 16 deprecation warning.
+  # Not used by the build; set to a supported version to avoid Netlify's
+  # Node 16 deprecation warning.
   NODE_VERSION = "22"
