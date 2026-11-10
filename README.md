@@ -5,7 +5,7 @@ Practising certificate dashboard: scrapes the IFoA public directory, builds a da
 The work is split in two:
 
 - **GitHub Actions updates the data.** R scrapes the directory and builds the database, then commits `data_raw/` and `database/` to `main`.
-- **Netlify renders the site.** Each push to `main` triggers a Netlify build (see `netlify.toml`) that runs `quarto render` and publishes `_site/`. The dashboard has no R code, it loads `database/dashboard_data.json` in the browser, so the build needs only Quarto. `_site/` is not committed.
+- **Netlify renders the site.** Each push to `main` triggers a Netlify build (see `netlify.toml` and `netlify_build.sh`) that runs `quarto render` and publishes `_site/`. The dashboard has no R code, it loads `database/dashboard_data.json` in the browser, so the build needs only Quarto. `_site/` is not committed.
 
 ## Requirements
 

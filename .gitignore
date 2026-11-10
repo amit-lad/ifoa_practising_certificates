@@ -43,3 +43,4 @@ vignettes/*.pdf
 # Rendered by Netlify
 /_site/
 .DS_Store
+/.quarto-dist/
