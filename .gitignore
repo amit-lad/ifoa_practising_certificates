@@ -44,3 +44,6 @@ vignettes/*.pdf
 /_site/
 .DS_Store
 /.quarto-dist/
+
+# Local Claude Code settings
+/.claude/
