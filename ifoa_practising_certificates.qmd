@@ -11,48 +11,6 @@ format:
         href: https://amitlad.com
 ---
 
-```{r}
-#| include: false
-library(tidyverse)
-
-certificate_labels <- c(
-  "Chief Actuary (Life)" = "Life",
-  "Chief Actuary (Life, Non-Directive)" = "Life (Non-Directive)",
-  "With Profits Actuary" = "With Profits",
-  "Chief Actuary (non-Life with Lloyd's)" = "Non-Life with Lloyd's",
-  "Chief Actuary (non-Life without Lloyd's)" = "Non-Life ex Lloyd's",
-  "Lloyd's Syndicate Actuary" = "Syndicate",
-  "Scheme Actuary" = "Scheme"
-)
-
-snapshot_dates <- readRDS("database/snapshot_dates.rds")
-
-spells <-
-  readRDS("database/certificate_database.rds") |>
-  mutate(
-    certificate = certificate_labels[certificate],
-    fellow = case_when(
-      fellow_type == "Fellow FIA" ~ "FIA",
-      fellow_type == "Fellow FFA" ~ "FFA",
-      TRUE ~ "Unknown"
-    ),
-    across(c(first_date, last_date, joined_after, left_before), format)
-  ) |>
-  select(first_name, last_name, certificate, first_date, last_date, joined_after, left_before, current,
-         fellow, qualification_year, cera, regulatory_record)
-
-# Periods of more than 14 days without a successful scrape.
-data_gaps <-
-  tibble(start = lag(snapshot_dates), end = snapshot_dates) |>
-  filter(end - start > 14)
-
-ojs_define(
-  spells_raw = spells,
-  snapshot_dates_raw = format(snapshot_dates),
-  certs = unname(certificate_labels)
-)
-```
-
 # {.sidebar}
 
 ```{ojs}
@@ -291,16 +249,24 @@ Each day, a GitHub Actions workflow searches the [IFoA public directory](https:/
 - **CERA** counts anyone shown as CERA in any snapshot. The directory used since 2026 rarely shows CERA, so people who became CERA or first appeared since then are undercounted.
 - **Qualification year** is the year shown with the Fellow's status in the directory.
 - **People** are matched by name, so two people with the same name and certificate are treated as one.
-- The first snapshot was taken on `r format(min(snapshot_dates), "%d %b %Y")`. There are `r length(snapshot_dates)` successful snapshots in total.
+- The first snapshot was taken on ${formatDate(snapshots[0])}. There are ${snapshots.length} successful snapshots in total.
 :::
 
 ### Column {width="40%"}
 
-```{r}
-#| title: Periods with no successful scrapes (over 14 days)
-data_gaps |>
-  mutate(days = as.numeric(end - start), across(c(start, end), \(d) format(d, "%d %b %Y"))) |>
-  knitr::kable(col.names = c("Last snapshot before", "Next snapshot", "Days"))
+```{ojs}
+//| title: Periods with no successful scrapes (over 14 days)
+{
+  const gaps = snapshots.slice(1)
+    .map((end, i) => ({start: snapshots[i], end}))
+    .filter(d => d.end - d.start > 14 * 86400000);
+  return html`<table class="table table-sm">
+    <thead><tr><th>Last snapshot before</th><th>Next snapshot</th><th>Days</th></tr></thead>
+    <tbody>${gaps.map(d => html`<tr>
+      <td>${formatDate(d.start)}</td><td>${formatDate(d.end)}</td><td>${Math.round((d.end - d.start) / 86400000)}</td>
+    </tr>`)}</tbody>
+  </table>`;
+}
 ```
 
 <!-- Data preparation for the OJS charts. Hidden, but kept on a page so Quarto runs it. -->
@@ -309,7 +275,17 @@ data_gaps |>
 
 ```{ojs}
 //| classes: d-none
-spells = transpose(spells_raw).map(d => ({
+data = FileAttachment("database/dashboard_data.json").json()
+```
+
+```{ojs}
+//| classes: d-none
+certs = data.certs
+```
+
+```{ojs}
+//| classes: d-none
+spells = data.spells.map(d => ({
   ...d,
   name: `${d.first_name} ${d.last_name}`,
   first_date: new Date(d.first_date),
@@ -321,7 +297,7 @@ spells = transpose(spells_raw).map(d => ({
 
 ```{ojs}
 //| classes: d-none
-snapshots = snapshot_dates_raw.map(d => new Date(d))
+snapshots = data.snapshot_dates.map(d => new Date(d))
 ```
 
 ```{ojs}

@@ -99,3 +99,41 @@ write_rds(
   compress = "none",
   text = TRUE
 )
+
+# Data for the dashboard, which loads it in the browser. Netlify renders the dashboard with Quarto alone (no R),
+# so everything the page needs is prepared here.
+certificate_labels <- c(
+  "Chief Actuary (Life)" = "Life",
+  "Chief Actuary (Life, Non-Directive)" = "Life (Non-Directive)",
+  "With Profits Actuary" = "With Profits",
+  "Chief Actuary (non-Life with Lloyd's)" = "Non-Life with Lloyd's",
+  "Chief Actuary (non-Life without Lloyd's)" = "Non-Life ex Lloyd's",
+  "Lloyd's Syndicate Actuary" = "Syndicate",
+  "Scheme Actuary" = "Scheme"
+)
+
+dashboard_spells <-
+  cleaned_data_spells |>
+  mutate(
+    certificate = unname(certificate_labels[certificate]),
+    fellow = case_when(
+      fellow_type == "Fellow FIA" ~ "FIA",
+      fellow_type == "Fellow FFA" ~ "FFA",
+      TRUE ~ "Unknown"
+    ),
+    across(c(first_date, last_date, joined_after, left_before), format)
+  ) |>
+  select(first_name, last_name, certificate, first_date, last_date, joined_after, left_before, current,
+         fellow, qualification_year, cera, regulatory_record)
+
+jsonlite::write_json(
+  list(
+    spells = dashboard_spells,
+    snapshot_dates = format(snapshot_dates),
+    certs = unname(certificate_labels)
+  ),
+  path = "database/dashboard_data.json",
+  dataframe = "rows",
+  na = "null",
+  auto_unbox = TRUE
+)

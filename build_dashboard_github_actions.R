@@ -1,7 +1,0 @@
-print("Progress update: Scrape data")
-source("scrape_data.R")
-print("Progress update: Build database")
-source("build_database.R")
-print("Progress update: Render dashboard")
-render_status <- system2("quarto", c("render", "ifoa_practising_certificates.qmd", "--output-dir", "_site"))
-if (render_status != 0) stop("Quarto render failed")

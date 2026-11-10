@@ -39,3 +39,7 @@ vignettes/*.pdf
 .Renviron
 
 /.quarto/
+
+# Rendered by Netlify
+/_site/
+.DS_Store

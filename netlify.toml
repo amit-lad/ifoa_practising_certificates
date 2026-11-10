@@ -1,0 +1,12 @@
+# Netlify renders the dashboard. GitHub Actions only updates the data (data_raw/ and database/);
+# each data commit to main triggers a Netlify build. The page has no R code, so only Quarto is needed.
+[build]
+  command = """
+    QUARTO_VERSION=1.4.549
+    if [ ! -x "$NETLIFY_CACHE_DIR/quarto-$QUARTO_VERSION/bin/quarto" ]; then
+      mkdir -p "$NETLIFY_CACHE_DIR"
+      curl -fsSL "https://github.com/quarto-dev/quarto-cli/releases/download/v$QUARTO_VERSION/quarto-$QUARTO_VERSION-linux-amd64.tar.gz" | tar -xz -C "$NETLIFY_CACHE_DIR"
+    fi
+    "$NETLIFY_CACHE_DIR/quarto-$QUARTO_VERSION/bin/quarto" render ifoa_practising_certificates.qmd --output-dir _site
+  """
+  publish = "_site"

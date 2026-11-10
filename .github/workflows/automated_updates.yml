@@ -8,14 +8,10 @@ on:
 
 
 jobs:
-  build_dashboard:
+  update_data:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-      - uses: quarto-dev/quarto-actions/setup@v2
-        with:
-          # Pinned: the dashboard works around OJS quirks in this version.
-          version: 1.4.549
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: '4.4.3'
@@ -23,16 +19,17 @@ jobs:
         with:
           cache-version: 1  # Increment this number to invalidate cache
 
-      - name: Install packages and run R scripts
+      - name: Scrape data and build database
         run: |
-          Rscript build_dashboard_github_actions.R
+          Rscript update_data.R
 
       - name: Commit files
         run: |
           git config --local user.name actions-user
           git config --local user.email "actions@github.com"
-          git add --all
-          git commit -am "automated update from github actions: $(date)"
+          git add data_raw database
+          git diff --cached --quiet && exit 0
+          git commit -m "automated update from github actions: $(date)"
           git push origin main
         env:
           REPO_KEY: ${{secrets.GITHUB_TOKEN}}
