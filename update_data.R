@@ -5,6 +5,9 @@
 # Usage:
 #   Rscript update_data.R              # scrape, then rebuild
 #   Rscript update_data.R --no-scrape  # rebuild from the existing snapshots
+#
+# If the database changed, it also writes an email listing the changes to
+# email/subject.txt and email/email.html, for the workflow to send.
 
 library(dplyr)
 library(httr2)
@@ -16,7 +19,12 @@ library(tidyr)
 
 walk(list.files("R", pattern = "\\.R$", full.names = TRUE), source)
 
-if (!"--no-scrape" %in% commandArgs(trailingOnly = TRUE)) {
+args <- commandArgs(trailingOnly = TRUE)
+
+# The database from the last successful update, to compare against.
+previous <- read_database()
+
+if (!"--no-scrape" %in% args) {
   message("Scraping the IFoA directory")
   today <- Sys.Date()
   snapshot <- scrape_directory(today)
@@ -43,3 +51,18 @@ dates <- snapshot_dates(snapshots)
 
 write_database(spells, dates)
 write_dashboard_data(spells, dates)
+
+# No email on a first run, when there's nothing to compare with.
+email <- if (!is.null(previous)) {
+  change_email(
+    compare_databases(previous$spells, spells),
+    previous$dates,
+    dates
+  )
+}
+
+if (write_change_email(email)) {
+  message("Email: ", email$subject)
+} else {
+  message("No changes to email")
+}

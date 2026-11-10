@@ -131,12 +131,10 @@ write_database <- function(spells, dates, dir = "data/database") {
 write_dashboard_data <- function(spells,
                                  dates,
                                  path = "dashboard/dashboard_data.json") {
-  certificate_labels <- deframe(select(certificates, certificate, label))
-
   dashboard_spells <-
     spells |>
     mutate(
-      certificate = unname(certificate_labels[certificate]),
+      certificate = unname(certificate_labels()[certificate]),
       fellow = recode_values(
         fellow_type,
         "Fellow FIA" ~ "FIA",

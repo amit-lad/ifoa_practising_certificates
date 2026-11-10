@@ -15,3 +15,6 @@
 
 # Local Claude Code settings
 /.claude/
+
+# Change email written by update_data.R for the workflow
+/email/

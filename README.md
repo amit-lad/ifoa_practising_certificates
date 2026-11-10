@@ -4,7 +4,7 @@ A dashboard of IFoA practising certificate holders over time. Each day the [IFoA
 
 ## How it runs
 
-- **GitHub Actions updates the data.** The `update_data` workflow runs `update_data.R` daily (and on demand from the Actions tab). It scrapes the directory, rebuilds the database and commits any changes to `main`. If the scrape finds no one, the workflow fails without committing anything.
+- **GitHub Actions updates the data.** The `update_data` workflow runs `update_data.R` daily (and on demand from the Actions tab). It scrapes the directory, rebuilds the database and commits any changes to `main`. If the database changed, it emails a summary (see [Change emails](#change-emails)). If the scrape finds no one, the workflow fails without committing anything.
 - **GitHub Actions also runs the tests.** The `tests` workflow runs them on every pull request, and on pushes that change the R code, tests or packages.
 - **Netlify renders the site.** Each push to `main` triggers a Netlify build (`netlify.toml`), which installs Quarto, renders `dashboard/` and publishes `dashboard/_site/`. The dashboard has no R code, so the build needs only Quarto. The rendered site is not committed.
 
@@ -16,6 +16,7 @@ R/                   Functions used by update_data.R
   certificates.R     The certificate types: names, labels and search values
   scrape.R           Search the directory and save a snapshot
   database.R         Combine snapshots into spells; write the outputs
+  changes.R          Compare the database before and after; write the email
 data/
   raw/               One snapshot per day: raw_results_<date>.rds
   database/          certificate_database.rds (spells) and snapshot_dates.rds
@@ -57,6 +58,8 @@ To rebuild the database from the existing snapshots without scraping:
 Rscript update_data.R --no-scrape
 ```
 
+If the database changed, either command also writes an email listing the changes to `email/subject.txt` and `email/email.html`, for the workflow to send. It's not committed.
+
 ### How the database is built
 
 `data/database/certificate_database.rds` has one row per spell of holding a certificate, and `data/database/snapshot_dates.rds` lists the dates with a successful scrape. A certificate only counts as relinquished once it has been missing from at least 3 successful snapshots spanning more than 30 days, so partial scrapes and brief drop-outs from the directory aren't counted as changes. Days with no snapshot, including empty snapshots saved before the scrape started failing on them, are treated as missing data, not as everyone leaving.
@@ -82,6 +85,28 @@ The tests check the spell logic (when a certificate counts as held, relinquished
 ```bash
 Rscript tests/testthat.R
 ```
+
+## Change emails
+
+When the database changes, the `update_data` workflow emails a summary of what changed since the last successful scrape, with a link to the [dashboard](https://practising-certificates.dashboards.amitlad.com/):
+- **Gained:** certificates that are new in the database.
+- **Relinquished:** certificates that now count as relinquished. Because that needs at least 3 snapshots and 30 days, these people were last seen some time ago.
+- **Other changes:** a holder's fellowship, qualification year, CERA status or regulatory record changed.
+
+Days with no changes send nothing.
+
+The email is sent through Gmail. To set it up:
+
+1. Turn on 2-Step Verification for the Google account, then create an [app password](https://myaccount.google.com/apppasswords) for it.
+2. In the repository's **Settings > Secrets and variables > Actions**, add these repository secrets:
+
+   | Secret | |
+   | --- | --- |
+   | `MAIL_USERNAME` | The Gmail address that sends the email |
+   | `MAIL_PASSWORD` | The app password (not the account's own password) |
+   | `MAIL_TO` | Optional: who receives it, comma separated. Defaults to `MAIL_USERNAME` |
+
+Without `MAIL_USERNAME` the email step is skipped, and the rest of the run is unaffected.
 
 ## Failure notifications
 

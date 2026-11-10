@@ -25,3 +25,8 @@ certificates <- tribble(
       "With[- ]Profits"
     )
   )
+
+# Short labels, named by full certificate name.
+certificate_labels <- function() {
+  deframe(select(certificates, certificate, label))
+}
