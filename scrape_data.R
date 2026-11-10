@@ -1,54 +1,68 @@
+# Scrape the IFoA public directory for Fellows holding each practising
+# certificate, and save today's snapshot to data_raw/.
+
 library(tidyverse)
-library(httr)
-library(readr)
-library(purrr)
+library(httr2)
 
-# Public directory moved to my.actuaries.org.uk (Silverbear FetchXML JSON API).
-send_url <- "https://my.actuaries.org.uk/DesktopModules/SilverbearCrm/FetchXMLSearch/Data/searchform.asmx/Send"
+# The public directory is served by a Silverbear FetchXML JSON API.
+api_url <- str_c(
+  "https://my.actuaries.org.uk/DesktopModules/SilverbearCrm/",
+  "FetchXMLSearch/Data/searchform.asmx/Send"
+)
 tabmodule_id <- 404L
-# Picklist code for "Fellow" from Load response (sbifoa_subsetmembershiptype).
-fellow_picklist_code <- "200000004"
+# Picklist code for "Fellow" (sbifoa_subsetmembershiptype).
+fellow_code <- "200000004"
 
-# Legacy short codes kept for traceability; values must match <option value="..."> on the live form.
-pc_types <- tibble(
-  pc_types_short = c("CAL", "CLND", "CANL", "CAN", "SYND", "WPAC", "SCHE"),
-  practising_cert_option = c(
-    "Chief Actuary (Life)",
-    "Chief Actuary (Life, Non-Directive)",
-    "Chief Actuary (non-Life without Lloyd's)",
-    "Chief Actuary (non-Life with Lloyd's)",
-    "Lloyd's Syndicate Actuary",
-    "With-Profits Actuary",
-    "Scheme Actuary"
-  )
+# Values must match the <option value="..."> entries on the live search form.
+certificate_options <- c(
+  "Chief Actuary (Life)",
+  "Chief Actuary (Life, Non-Directive)",
+  "Chief Actuary (non-Life without Lloyd's)",
+  "Chief Actuary (non-Life with Lloyd's)",
+  "Lloyd's Syndicate Actuary",
+  "With-Profits Actuary",
+  "Scheme Actuary"
 )
 
-firstname_search <- tibble(firstname_search = c("[A-C]", "[D-F]", "[G-J]", "[K-N]", "[O-R]", "[S-V]", "[W-Z]"))
+# The API caps results per search, so split each search by first name.
+first_name_ranges <- c(
+  "[A-C]", "[D-F]", "[G-J]", "[K-N]", "[O-R]", "[S-V]", "[W-Z]"
+)
 
-search_matrix <- pc_types |> cross_join(firstname_search)
+searches <- expand_grid(
+  certificate = certificate_options,
+  first_name_range = first_name_ranges
+)
 
-nv <- function(x, default = "") {
-  if (is.null(x)) {
-    return(default)
-  }
-  if (length(x) == 1L && is.na(x)) {
-    return(default)
+# Column names match the historic directory table, so every snapshot in
+# data_raw/ has the same columns.
+empty_results <- tibble(
+  `First name` = character(),
+  Surname = character(),
+  Status = character(),
+  `Practising certificate type` = character(),
+  `Regulatory record` = character()
+)
+
+# Missing fields come back as NULL or NA; treat both as empty text.
+as_text <- function(x) {
+  if (is.null(x) || (length(x) == 1 && is.na(x))) {
+    return("")
   }
   as.character(x)
 }
 
-# Match historic Drupal table: first column was forename(s), i.e. first + middle when present.
-forename_display <- function(first, middle) {
-  str_squish(paste(nv(first), nv(middle)))
-}
+search_body <- function(first_name_range, certificate) {
+  token <- function(name, value) {
+    list(token = str_glue("[token:{name}]"), value = value)
+  }
 
-build_send_body <- function(forename_range, practising_cert_value) {
   list(
     alltokens = list(
-      list(token = "[token:firstname]", value = forename_range),
-      list(token = "[token:lastname]", value = ""),
-      list(token = "[token:sbifoa_subsetmembershiptype]", value = fellow_picklist_code),
-      list(token = "[token:sbifoa_concatenatedpractisingcertificatetypes]", value = practising_cert_value)
+      token("firstname", first_name_range),
+      token("lastname", ""),
+      token("sbifoa_subsetmembershiptype", fellow_code),
+      token("sbifoa_concatenatedpractisingcertificatetypes", certificate)
     ),
     tabmoduleId = tabmodule_id,
     portalId = 0L,
@@ -60,84 +74,77 @@ build_send_body <- function(forename_range, practising_cert_value) {
     locationSearch = FALSE,
     surnameSearch = FALSE,
     lastnameFieldExists = TRUE,
-    # Server rejects JSON null for this parameter (HTTP 500); empty string matches browser behaviour.
+    # The server rejects JSON null here (HTTP 500); an empty string matches
+    # what the browser sends.
     entityId = ""
   )
 }
 
-api_results_to_tibble <- function(items) {
-  empty <- tibble(
-    "First name" = character(),
-    Surname = character(),
-    Status = character(),
-    "Practising certificate type" = character(),
-    "Regulatory record" = character()
-  )
-  if (length(items) == 0L) {
-    return(empty)
+result_to_row <- function(result) {
+  if (!is.list(result)) {
+    return(empty_results)
   }
-  map_dfr(items, function(row) {
-    if (!is.list(row)) {
-      return(empty[0, , drop = FALSE])
-    }
-    status_txt <- paste(
-      nv(row$sbifoa_subsetmembershiptype),
-      nv(row$sb_postnominal),
-      nv(row$ifoa_calculateddatejoined),
-      sep = " "
-    )
-    tibble(
-      "First name" = forename_display(row$firstname, row$middlename),
-      Surname = nv(row$lastname),
-      Status = status_txt,
-      "Practising certificate type" = nv(row$sbifoa_concatenatedpractisingcertificatetypes),
-      "Regulatory record" = nv(row$sbifoa_concatenateddisciplinaries)
-    )
-  })
-}
 
-query_ifoa_api <- function(forename_range, practising_cert_value) {
-  body <- build_send_body(forename_range, practising_cert_value)
-  resp <- tryCatch(
-    POST(
-      send_url,
-      body = body,
-      encode = "json",
-      accept_json(),
-      content_type_json(),
-      user_agent("ifoa_practising_certificates / R httr")
+  tibble(
+    # The historic table's first column held forenames: first plus middle.
+    `First name` = str_squish(
+      str_c(as_text(result$firstname), " ", as_text(result$middlename))
     ),
-    error = function(e) NULL
+    Surname = as_text(result$lastname),
+    Status = str_c(
+      as_text(result$sbifoa_subsetmembershiptype),
+      as_text(result$sb_postnominal),
+      as_text(result$ifoa_calculateddatejoined),
+      sep = " "
+    ),
+    `Practising certificate type` = as_text(
+      result$sbifoa_concatenatedpractisingcertificatetypes
+    ),
+    `Regulatory record` = as_text(result$sbifoa_concatenateddisciplinaries)
   )
-
-  if (is.null(resp) || status_code(resp) != 200L) {
-    return(api_results_to_tibble(list()))
-  }
-
-  parsed <- tryCatch(content(resp, as = "parsed", type = "application/json"), error = function(e) NULL)
-  if (is.null(parsed) || is.null(parsed$d) || !isTRUE(parsed$d$Success)) {
-    return(api_results_to_tibble(list()))
-  }
-
-  items <- parsed$d$Results
-  if (is.null(items) || !is.list(items)) {
-    return(api_results_to_tibble(list()))
-  }
-
-  api_results_to_tibble(items)
 }
 
-results_raw <- search_matrix |>
-  pmap(function(pc_types_short, practising_cert_option, firstname_search) {
-    query_ifoa_api(firstname_search, practising_cert_option)
-  }) |>
-  bind_rows() |>
-  unique() |>
-  mutate(date = Sys.Date())
+# Returns no rows if the search fails, so one failed search doesn't stop the
+# scrape. build_database.R allows for snapshots with missing people.
+search_directory <- function(first_name_range, certificate) {
+  response <- tryCatch(
+    request(api_url) |>
+      req_body_json(search_body(first_name_range, certificate)) |>
+      req_headers(Accept = "application/json") |>
+      req_user_agent("ifoa_practising_certificates (R httr2)") |>
+      req_retry(max_tries = 3) |>
+      req_perform(),
+    error = \(e) NULL
+  )
+  if (is.null(response)) {
+    return(empty_results)
+  }
+
+  body <- tryCatch(
+    resp_body_json(response, check_type = FALSE),
+    error = \(e) NULL
+  )
+  results <- body$d$Results
+  if (!isTRUE(body$d$Success) || !is.list(results) || length(results) == 0) {
+    return(empty_results)
+  }
+
+  results |>
+    map(result_to_row) |>
+    list_rbind()
+}
+
+scrape_date <- Sys.Date()
+
+snapshot <-
+  map2(searches$first_name_range, searches$certificate, search_directory) |>
+  list_rbind(ptype = empty_results) |>
+  distinct() |>
+  mutate(date = scrape_date)
 
 write_rds(
-  x = results_raw,
-  file = paste0("data_raw/raw_results_", Sys.Date(), ".rds"),
+  snapshot,
+  str_glue("data_raw/raw_results_{scrape_date}.rds"),
   compress = "none",
   text = TRUE
 )

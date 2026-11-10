@@ -40,6 +40,18 @@ Rscript build_database.R
 
 `build_database.R` writes `database/certificate_database.rds` (one row per spell of holding a certificate), `database/snapshot_dates.rds` (dates with a successful scrape) and `database/dashboard_data.json` (the same data prepared for the dashboard). A certificate only counts as relinquished once it has been missing from at least 3 successful snapshots spanning more than 30 days, so partial scrapes and brief drop-outs from the directory aren't counted as changes.
 
+## Code style
+
+The R code follows the [tidyverse style guide](https://style.tidyverse.org/). [styler](https://styler.r-lib.org/) and [lintr](https://lintr.r-lib.org/) are development tools only, so they aren't in `renv.lock`; install them with `renv::install(c("styler", "lintr"))`. Then format and check the code with:
+
+```bash
+Rscript -e 'styler::style_dir(exclude_dirs = "renv")'
+```
+
+```bash
+Rscript -e 'lintr::lint_dir()'
+```
+
 ## Render and view the site locally
 
 ```bash
