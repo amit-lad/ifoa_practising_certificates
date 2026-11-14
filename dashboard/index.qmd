@@ -9,13 +9,27 @@ format:
       - text: amitlad.com
         href: https://amitlad.com
     include-in-header:
-      # Quarto's sidebar code (from bslib) uses jQuery to tell Shiny when the
-      # sidebar opens or closes. Static dashboards have no jQuery or Shiny, so
-      # stand in a jQuery that ignores those calls, to avoid console errors.
+      # DataTables (with its Bootstrap 5 styling and the Scroller extension,
+      # which draws only the rows in view) for the Changes and People tables.
+      # It needs jQuery, which also handles the calls Quarto's sidebar code
+      # (from bslib) makes to tell Shiny when the sidebar opens or closes.
+      # Versions are pinned so the site only changes when the dashboard does.
       text: |
-        <script>
-        if (!window.jQuery) window.$ = () => ({ trigger() {} });
-        </script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-bs5@2.1.8/css/dataTables.bootstrap5.min.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-scroller-bs5@2.4.3/css/scroller.bootstrap5.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/datatables.net@2.1.8/js/dataTables.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@2.1.8/js/dataTables.bootstrap5.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/datatables.net-scroller@2.4.3/js/dataTables.scroller.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/datatables.net-scroller-bs5@2.4.3/js/scroller.bootstrap5.min.js"></script>
+        <style>
+          .dt-card .dt-note { font-size: 0.85rem; opacity: 0.8; margin-bottom: 4px; }
+          .dt-card table.dataTable { table-layout: fixed; margin: 0 !important; }
+          .dt-card table.dataTable th, .dt-card table.dataTable td { text-align: left !important; }
+          /* Scroller needs every row the same height, so cells stay on one line. */
+          .dt-card table.dataTable tbody td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .dt-card table.dataTable thead th { white-space: normal; word-break: normal; overflow-wrap: normal; vertical-align: bottom; }
+        </style>
 ---
 
 # {.sidebar}
@@ -181,26 +195,18 @@ viewof changeTypes = Inputs.checkbox(["Gained", "Relinquished"], {value: ["Gaine
 
 ```{ojs}
 //| title: Recent changes
-{
-  // Count shown here rather than in the search box, so it reflects the Show options too.
-  const rows = changeSearch.filter(d => changeTypes.includes(d.change));
-  return fillCard((width, height) => html`<div class="no-select">${noSelectStyle}<div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 4px;">${rows.length} changes in the last ${recentDays} days</div>
-  ${Inputs.table(rows, {
-  height,
-  // Render every row up front: lazy loading on scroll doesn't trigger inside dashboard cards.
-  rows: rows.length + 1,
-  columns: ["date", "change", "first_name", "last_name", "certificate", "since", "fellow", "qualification_year"],
-  header: {
-    date: "Seen on", change: "Change", first_name: "First name", last_name: "Surname",
-    certificate: "Certificate", since: "Previous snapshot", fellow: "Fellowship", qualification_year: "Qualified"
-  },
-  format: {date: formatDate, since: formatDate, qualification_year: d => d},
-  // Same widths as the People table; the last column takes any spare width.
-  width: {...tableColumnWidths, qualification_year: undefined},
-  align: {qualification_year: "left"},
-  layout: "fixed"
-  })}</div>`, 28);
-}
+changesTable = dataTableCard(
+  dtColumns(
+    ["date", "change", "first_name", "last_name", "certificate", "since", "fellow", "qualification_year"],
+    {
+      date: "Seen on", change: "Change", first_name: "First name", last_name: "Surname",
+      certificate: "Certificate", since: "Previous snapshot", fellow: "Fellowship", qualification_year: "Qualified"
+    },
+    // Same widths as the People table; the last column takes any spare width.
+    {...tableColumnWidths, qualification_year: undefined}
+  ),
+  {order: [[0, "desc"]]}
+)
 ```
 
 # People
@@ -223,23 +229,7 @@ viewof peopleOptions = {
 
 ```{ojs}
 //| title: Certificate holders
-fillCard((width, height) => html`<div class="no-select">${noSelectStyle}
-  <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 4px;">${peopleRows.length} records</div>
-  ${Inputs.table(peopleRows, {
-    height,
-    // Render every row up front: lazy loading on scroll doesn't trigger inside dashboard cards.
-    rows: peopleRows.length + 1,
-    columns: peopleColumns,
-    header: peopleHeader,
-    format: {
-      first_date: formatDate, last_date: formatDate, qualification_year: d => d,
-      current: d => d ? "Yes" : "No", cera: d => d ? "Yes" : "No", regulatory_record: d => d ? "Yes" : "No"
-    },
-    sort: "last_name",
-    width: tableColumnWidths,
-    align: {qualification_year: "left"},
-    layout: "fixed"
-  })}</div>`, 28)
+peopleTable = dataTableCard(dtColumns(peopleColumns, peopleHeader, tableColumnWidths), {order: [[1, "asc"]]})
 ```
 
 # About the data
@@ -418,14 +408,103 @@ tableColumnWidths = {
 
 ```{ojs}
 //| classes: d-none
-noSelectStyle = html`<style>
-  /* Hide the row-selection checkboxes Inputs.table adds as its first column. */
-  .no-select table { width: 100%; }
-  .no-select thead th { white-space: normal; word-break: normal; overflow-wrap: normal; vertical-align: bottom; }
-  .no-select table tr > :first-child { display: none; }
-  /* Highlight the row under the pointer. */
-  .no-select table tbody tr:hover td { background: rgba(127, 127, 127, 0.15); }
-</style>`
+// Swaps new rows into the existing tables when the filters change, rather than rebuilding them.
+changesTable.setRows(
+  changeSearch.filter(d => changeTypes.includes(d.change)),
+  // Count shown here rather than in the search box, so it reflects the Show options too.
+  rows => `${rows.length.toLocaleString()} changes in the last ${recentDays} days`
+)
+```
+
+```{ojs}
+//| classes: d-none
+peopleTable.setRows(peopleRows, rows => `${rows.length.toLocaleString()} records`)
+```
+
+```{ojs}
+//| classes: d-none
+dtColumns = function(fields, header, widths) {
+  // DataTables column definitions. Dates show formatted but sort by time; true/false shows as Yes/No.
+  const date = (d, type) => d == null ? "" : type === "display" || type === "filter" ? formatDate(d) : +d;
+  const yesNo = d => d ? "Yes" : "No";
+  const render = {
+    date, since: date, first_date: date, last_date: date,
+    current: yesNo, cera: yesNo, regulatory_record: yesNo
+  };
+  // Widths become shares of the table so it always fits its card; a column without one gets 120px worth.
+  const total = d3.sum(fields, field => widths[field] ?? 120);
+  return fields.map(field => ({
+    data: field,
+    title: header[field],
+    width: `${(100 * (widths[field] ?? 120) / total).toFixed(2)}%`,
+    render: render[field] ?? null
+  }));
+}
+```
+
+```{ojs}
+//| classes: d-none
+dataTableCard = function(columns, options = {}) {
+  // A DataTable that fills its card. It is built once; setRows(rows, note) swaps in new rows and
+  // updates the note above the table. Scroller draws only the rows in view, and resizing the card
+  // resizes the scrolling area instead of rebuilding the table.
+  const outer = document.createElement("div");
+  outer.className = "dt-card";
+  outer.style.cssText = "position: relative; width: 100%; height: 260px;";
+  const inner = document.createElement("div");
+  inner.style.cssText = "position: absolute; inset: 0;";
+  const note = document.createElement("div");
+  note.className = "dt-note";
+  const table = document.createElement("table");
+  table.className = "table table-sm table-hover";
+  table.style.width = "100%";
+  inner.append(note, table);
+  outer.append(inner);
+
+  let api = null;
+  let pending = [];
+  outer.setRows = (rows, describe) => {
+    note.textContent = describe(rows);
+    pending = rows;
+    if (api) api.clear().rows.add(rows).draw();
+  };
+
+  let frame;
+  const observer = new ResizeObserver(([entry]) => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      const height = Math.max(260, Math.floor(entry.contentRect.height) - 4);
+      outer.style.height = `${height}px`;
+      const body = inner.querySelector(".dt-scroll-body");
+      // Skip while the page is hidden; this runs again when it's shown.
+      if (!api || !body || entry.contentRect.width === 0) return;
+      const top = body.getBoundingClientRect().top - inner.getBoundingClientRect().top;
+      body.style.height = body.style.maxHeight = `${Math.max(100, height - top)}px`;
+      api.columns.adjust();
+      api.scroller.measure();
+    });
+  });
+
+  (function attach() {
+    // DataTables measures the page when it starts, so wait until the table is on the page.
+    if (!outer.isConnected) return requestAnimationFrame(attach);
+    api = new DataTable(table, {
+      columns,
+      data: pending,
+      autoWidth: false,
+      deferRender: true,
+      scroller: true,
+      scrollY: 200,
+      searching: false,
+      // Filtering and counts are done by the dashboard's own inputs, so hide DataTables' controls.
+      layout: {topStart: null, topEnd: null, bottomStart: null, bottomEnd: null},
+      language: {emptyTable: "No matching records"},
+      ...options
+    });
+    observer.observe(outer.closest(".cell-output") ?? outer);
+  })();
+  return outer;
+}
 ```
 
 ```{ojs}
